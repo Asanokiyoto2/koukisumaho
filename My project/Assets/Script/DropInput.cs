@@ -1,167 +1,127 @@
+
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class DropInput : MonoBehaviour
 {
     public BoardManager board;
 
-    private Drop selectedDrop;
-
     private Camera mainCamera;
+    private Drop selectedDrop;
+    private bool moved;
 
     private void Start()
     {
         mainCamera = Camera.main;
+
+        if (board == null)
+            board = FindFirstObjectByType<BoardManager>();
+
+        if (mainCamera == null)
+            Debug.LogError("Main CameraÇ™å©Ç¬Ç©ÇËÇ‹ÇπÇÒÅB");
     }
 
     private void Update()
     {
-        if (board == null)
+        if (board == null || mainCamera == null)
+            return;
+
+        if (Mouse.current == null)
             return;
 
         if (board.IsBusy)
             return;
 
-        if (Input.GetMouseButtonDown(0))
-        {
-            StartDrag();
-        }
+        if (GameManager.Instance != null &&
+            !GameManager.Instance.CanPlay)
+            return;
 
-        if (Input.GetMouseButton(0))
-        {
-            Drag();
-        }
+        if (Mouse.current.leftButton.wasPressedThisFrame)
+            BeginDrag();
 
-        if (Input.GetMouseButtonUp(0))
-        {
+        if (Mouse.current.leftButton.isPressed)
+            ContinueDrag();
+
+        if (Mouse.current.leftButton.wasReleasedThisFrame)
             EndDrag();
-        }
     }
 
-    // =====================================================
-    // íÕÇﬁ
-    // =====================================================
-
-    private void StartDrag()
+    private Vector3 GetMouseWorldPosition()
     {
-        Vector3 worldPosition =
-            mainCamera.ScreenToWorldPoint(
-                Input.mousePosition
-            );
+        Vector2 screen =
+            Mouse.current.position.ReadValue();
 
-        worldPosition.z = 0f;
+        float distance =
+            -mainCamera.transform.position.z;
 
+        Vector3 world = mainCamera.ScreenToWorldPoint(
+            new Vector3(screen.x, screen.y, distance)
+        );
+
+        world.z = 0f;
+        return world;
+    }
+
+    private void BeginDrag()
+    {
         Collider2D hit =
-            Physics2D.OverlapPoint(
-                worldPosition
-            );
+            Physics2D.OverlapPoint(GetMouseWorldPosition());
 
         if (hit == null)
             return;
 
-        selectedDrop =
-            hit.GetComponent<Drop>();
+        selectedDrop = hit.GetComponent<Drop>();
+        moved = false;
     }
 
-    // =====================================================
-    // à⁄ìÆ
-    // =====================================================
-
-    private void Drag()
+    private void ContinueDrag()
     {
-        if (selectedDrop == null)
+        if (selectedDrop == null || board.IsBusy)
             return;
-
-        Vector3 worldPosition =
-            mainCamera.ScreenToWorldPoint(
-                Input.mousePosition
-            );
-
-        worldPosition.z = 0f;
 
         Vector3 localPosition =
-            board.transform
-            .InverseTransformPoint(
-                worldPosition
+            board.transform.InverseTransformPoint(
+                GetMouseWorldPosition()
             );
 
-        int targetX =
-            Mathf.RoundToInt(
-                (
-                    localPosition.x +
-                    (board.width - 1) *
-                    board.cellSize /
-                    2f
-                )
-                /
-                board.cellSize
-            );
+        int targetX = Mathf.RoundToInt(
+            (localPosition.x +
+             (board.width - 1) * board.cellSize / 2f)
+            / board.cellSize
+        );
 
-        int targetY =
-            Mathf.RoundToInt(
-                (
-                    localPosition.y +
-                    (board.height - 1) *
-                    board.cellSize /
-                    2f
-                )
-                /
-                board.cellSize
-            );
+        int targetY = Mathf.RoundToInt(
+            (localPosition.y +
+             (board.height - 1) * board.cellSize / 2f)
+            / board.cellSize
+        );
 
-        targetX =
-            Mathf.Clamp(
-                targetX,
-                0,
-                board.width - 1
-            );
-
-        targetY =
-            Mathf.Clamp(
-                targetY,
-                0,
-                board.height - 1
-            );
-
-        Drop target =
-            board.GetDrop(
-                targetX,
-                targetY
-            );
-
-        if (target == null)
+        if (targetX < 0 || targetX >= board.width ||
+            targetY < 0 || targetY >= board.height)
             return;
 
-        if (target == selectedDrop)
+        Drop target = board.GetDrop(targetX, targetY);
+
+        if (target == null || target == selectedDrop)
             return;
 
-        int dx =
-            Mathf.Abs(
-                target.X -
-                selectedDrop.X
-            );
-
-        int dy =
-            Mathf.Abs(
-                target.Y -
-                selectedDrop.Y
-            );
-
-        // ó◊ê⁄ÇµÇƒÇ¢ÇÈèÍçáÇæÇØåä∑
-        if (dx + dy == 1)
-        {
-            board.Swap(
-                selectedDrop,
-                target
-            );
-        }
+        if (board.SwapImmediate(selectedDrop, target))
+            moved = true;
     }
-
-    // =====================================================
-    // ó£Ç∑
-    // =====================================================
 
     private void EndDrag()
     {
+        if (selectedDrop != null && moved)
+            board.FinishMove();
+
         selectedDrop = null;
+        moved = false;
+    }
+
+    private void OnDisable()
+    {
+        selectedDrop = null;
+        moved = false;
     }
 }
+

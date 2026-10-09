@@ -1,3 +1,4 @@
+
 using UnityEngine;
 
 [RequireComponent(typeof(SpriteRenderer))]
@@ -5,28 +6,71 @@ using UnityEngine;
 public class Drop : MonoBehaviour
 {
     public DropType Type { get; private set; }
-
     public int X { get; private set; }
     public int Y { get; private set; }
 
     private BoardManager board;
     private SpriteRenderer spriteRenderer;
+    private BoxCollider2D boxCollider;
 
     private void Awake()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
+        boxCollider = GetComponent<BoxCollider2D>();
     }
 
     public void Initialize(
-        BoardManager board,
+        BoardManager boardManager,
         int x,
         int y,
         DropType type)
     {
-        this.board = board;
+        board = boardManager;
+        X = x;
+        Y = y;
 
-        SetGridPosition(x, y);
+        if (spriteRenderer == null)
+            spriteRenderer = GetComponent<SpriteRenderer>();
+
+        if (boxCollider == null)
+            boxCollider = GetComponent<BoxCollider2D>();
+
         SetType(type);
+        SetGridPosition(x, y);
+    }
+
+    public void SetType(DropType type)
+    {
+        Type = type;
+
+        if (board == null)
+            return;
+
+        Sprite sprite = board.GetSpriteForType(type);
+
+        spriteRenderer.sprite = sprite;
+        spriteRenderer.color = board.GetColorForType(type);
+
+        // 画像の縦横比を保ちながら、1マスに収まる大きさにする
+        if (sprite != null)
+        {
+            float maxDimension = Mathf.Max(
+                sprite.bounds.size.x,
+                sprite.bounds.size.y
+            );
+
+            if (maxDimension > 0f)
+            {
+                float scale = board.cellSize * 0.9f / maxDimension;
+                transform.localScale = new Vector3(scale, scale, 1f);
+
+                // 当たり判定もマスに収まるようにする
+                boxCollider.size = new Vector2(
+                    board.cellSize * 0.85f / scale,
+                    board.cellSize * 0.85f / scale
+                );
+            }
+        }
     }
 
     public void SetGridPosition(int x, int y)
@@ -35,38 +79,8 @@ public class Drop : MonoBehaviour
         Y = y;
 
         if (board != null)
-        {
-            transform.localPosition =
-                board.GridToLocalPosition(x, y);
-        }
-    }
-
-    public void SetType(DropType type)
-    {
-        Type = type;
-
-        switch (type)
-        {
-            case DropType.Red:
-                spriteRenderer.color = Color.red;
-                break;
-
-            case DropType.Blue:
-                spriteRenderer.color = Color.blue;
-                break;
-
-            case DropType.Green:
-                spriteRenderer.color = Color.green;
-                break;
-
-            case DropType.Yellow:
-                spriteRenderer.color = Color.yellow;
-                break;
-
-            case DropType.Purple:
-                spriteRenderer.color =
-                    new Color(0.65f, 0.2f, 0.8f);
-                break;
-        }
+            transform.localPosition = board.GridToLocalPosition(x, y);
     }
 }
+
+
