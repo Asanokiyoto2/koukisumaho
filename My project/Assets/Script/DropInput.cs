@@ -71,7 +71,14 @@ public class DropInput : MonoBehaviour
             return;
 
         selectedDrop = hit.GetComponent<Drop>();
+
+        if (selectedDrop == null)
+            return;
+
         moved = false;
+
+        // ドラッグ開始前の盤面を保存
+        board.BeginDragMove();
     }
 
     private void ContinueDrag()
@@ -100,19 +107,24 @@ public class DropInput : MonoBehaviour
             targetY < 0 || targetY >= board.height)
             return;
 
-        Drop target = board.GetDrop(targetX, targetY);
-
-        if (target == null || target == selectedDrop)
-            return;
-
-        if (board.SwapImmediate(selectedDrop, target))
+        if (board.MoveDraggedDropTo(selectedDrop,targetX,targetY))
+        {
             moved = true;
+        }
     }
 
     private void EndDrag()
     {
         if (selectedDrop != null && moved)
+        {
+            // 指を離したタイミングで消去判定
             board.FinishMove();
+        }
+        else
+        {
+            // 移動していなければ保存を解除
+            board.CancelDragMove();
+        }
 
         selectedDrop = null;
         moved = false;
@@ -120,6 +132,9 @@ public class DropInput : MonoBehaviour
 
     private void OnDisable()
     {
+        if (board != null)
+            board.CancelDragMove();
+
         selectedDrop = null;
         moved = false;
     }

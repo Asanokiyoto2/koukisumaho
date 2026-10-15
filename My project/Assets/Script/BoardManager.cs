@@ -27,8 +27,14 @@ public class BoardManager : MonoBehaviour
     public float fallDelay = 0.15f;
 
     private Drop[,] drops;
+    private Drop[,] dragStartBoard;
+
     private Sprite fallbackSprite;
     private float previousAspect;
+
+    // 入れ替え前後の判定に使う
+    private Drop lastSwapA;
+    private Drop lastSwapB;
 
     public bool IsBusy { get; private set; }
 
@@ -228,7 +234,30 @@ public class BoardManager : MonoBehaviour
         a.SetGridPosition(bx, by);
         b.SetGridPosition(ax, ay);
 
+       
+
         return true;
+    }
+
+    private void UndoLastSwap()
+    {
+        if (lastSwapA == null || lastSwapB == null)
+            return;
+
+        int ax = lastSwapA.X;
+        int ay = lastSwapA.Y;
+        int bx = lastSwapB.X;
+        int by = lastSwapB.Y;
+
+        // 盤面上の配置を元に戻す
+        drops[ax, ay] = lastSwapB;
+        drops[bx, by] = lastSwapA;
+
+        lastSwapA.SetGridPosition(bx, by);
+        lastSwapB.SetGridPosition(ax, ay);
+
+        lastSwapA = null;
+        lastSwapB = null;
     }
 
     public void FinishMove()
@@ -252,9 +281,16 @@ public class BoardManager : MonoBehaviour
             HashSet<Drop> matches = FindMatches();
 
             if (matches.Count == 0)
-                break;
+            {
+                // 消去できなければ盤面全体を元に戻す
+                if (comboCount == 0)
+                    RestoreDragStartBoard();
 
-            comboCount++;
+                break;
+            }
+
+            int groupsThisWave = CountMatchGroups(matches);
+            comboCount += groupsThisWave;
 
             int[] typeCounts = new int[5];
 
@@ -294,6 +330,8 @@ public class BoardManager : MonoBehaviour
                 totalCleared
             );
         }
+
+        dragStartBoard = null;
     }
 
     private HashSet<Drop> FindMatches()
@@ -444,6 +482,146 @@ public class BoardManager : MonoBehaviour
         if (fallbackSprite != null)
             Destroy(fallbackSprite);
     }
+
+    // ドラッグ開始時の盤面を保存
+    public void BeginDragMove()
+    {
+        dragStartBoard = new Drop[width, height];
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                dragStartBoard[x, y] = drops[x, y];
+            }
+        }
+    }
+
+    // ドラッグしても移動しなかった場合に保存を解除
+    public void CancelDragMove()
+    {
+        dragStartBoard = null;
+    }
+
+    // ドラッグ開始時の盤面に戻す
+    private void RestoreDragStartBoard()
+    {
+        if (dragStartBoard == null)
+            return;
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                Drop drop = dragStartBoard[x, y];
+
+                drops[x, y] = drop;
+
+                if (drop != null)
+                    drop.SetGridPosition(x, y);
+            }
+        }
+    }
+
+    // ドラッグ中のドロップを指定したマスまで移動させる
+    public bool MoveDraggedDropTo(Drop dragged, int targetX, int targetY)
+    {
+        if (dragged == null || IsBusy)
+            return false;
+
+        if (targetX < 0 || targetX >= width ||
+            targetY < 0 || targetY >= height)
+            return false;
+
+        bool movedAny = false;
+        int safety = width + height;
+
+        // 目的のマスまで1マスずつ入れ替える
+        while ((dragged.X != targetX || dragged.Y != targetY) &&
+               safety-- > 0)
+        {
+            int nextX = dragged.X;
+            int nextY = dragged.Y;
+
+            // 横方向を優先して移動
+            if (nextX != targetX)
+                nextX += nextX < targetX ? 1 : -1;
+            else if (nextY != targetY)
+                nextY += nextY < targetY ? 1 : -1;
+
+            Drop target = GetDrop(nextX, nextY);
+
+            if (target == null ||
+                !SwapImmediate(dragged, target))
+                break;
+
+            movedAny = true;
+        }
+
+        return movedAny;
+    }
+
+    // 同時に消えるドロップを、独立したコンボグループに分ける
+    private int CountMatchGroups(HashSet<Drop> matches)
+    {
+        HashSet<Drop> remaining = new HashSet<Drop>(matches);
+        int groupCount = 0;
+
+        while (remaining.Count > 0)
+        {
+            Drop start = null;
+
+            foreach (Drop drop in remaining)
+            {
+                start = drop;
+                break;
+            }
+
+            if (start == null)
+                break;
+
+            groupCount++;
+
+            Queue<Drop> queue = new Queue<Drop>();
+            queue.Enqueue(start);
+            remaining.Remove(start);
+
+            while (queue.Count > 0)
+            {
+                Drop current = queue.Dequeue();
+
+                // 上下左右で隣接する同じ属性の消去対象を探す
+                int[,] directions =
+                {
+                    { 1, 0 },
+                    { -1, 0 },
+                    { 0, 1 },
+                    { 0, -1 }
+                };
+
+                for (int i = 0; i < 4; i++)
+                {
+                    int nx = current.X + directions[i, 0];
+                    int ny = current.Y + directions[i, 1];
+
+                    Drop neighbor = GetDrop(nx, ny);
+
+                    if (neighbor == null)
+                        continue;
+
+                    if (neighbor.Type != current.Type)
+                        continue;
+
+                    if (remaining.Remove(neighbor))
+                        queue.Enqueue(neighbor);
+                }
+            }
+        }
+
+        return groupCount;
+    }
+
+
 }
 
 
