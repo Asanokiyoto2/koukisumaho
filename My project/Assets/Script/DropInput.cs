@@ -19,6 +19,9 @@ public class DropInput : MonoBehaviour
 
         if (mainCamera == null)
             Debug.LogError("Main Cameraが見つかりません。");
+
+        if (board == null)
+            Debug.LogError("BoardManagerが見つかりません。");
     }
 
     private void Update()
@@ -29,34 +32,38 @@ public class DropInput : MonoBehaviour
         if (Mouse.current == null)
             return;
 
-        if (board.IsBusy)
-            return;
-
-        if (GameManager.Instance != null &&
-            !GameManager.Instance.CanPlay)
-            return;
-
+        // ドラッグ中は、操作を最後まで受け付ける
         if (Mouse.current.leftButton.wasPressedThisFrame)
-            BeginDrag();
+        {
+            if (!board.IsBusy &&
+                (GameManager.Instance == null ||
+                 GameManager.Instance.CanPlay))
+            {
+                BeginDrag();
+            }
+        }
 
-        if (Mouse.current.leftButton.isPressed)
+        if (selectedDrop != null &&
+            Mouse.current.leftButton.isPressed &&
+            !board.IsBusy)
+        {
             ContinueDrag();
+        }
 
         if (Mouse.current.leftButton.wasReleasedThisFrame)
+        {
             EndDrag();
+        }
     }
 
     private Vector3 GetMouseWorldPosition()
     {
-        Vector2 screen =
-            Mouse.current.position.ReadValue();
+        Vector2 screen = Mouse.current.position.ReadValue();
 
-        float distance =
-            -mainCamera.transform.position.z;
+        float distance = -mainCamera.transform.position.z;
 
         Vector3 world = mainCamera.ScreenToWorldPoint(
-            new Vector3(screen.x, screen.y, distance)
-        );
+            new Vector3(screen.x, screen.y, distance));
 
         world.z = 0f;
         return world;
@@ -64,8 +71,8 @@ public class DropInput : MonoBehaviour
 
     private void BeginDrag()
     {
-        Collider2D hit =
-            Physics2D.OverlapPoint(GetMouseWorldPosition());
+        Collider2D hit = Physics2D.OverlapPoint(
+            GetMouseWorldPosition());
 
         if (hit == null)
             return;
@@ -77,7 +84,7 @@ public class DropInput : MonoBehaviour
 
         moved = false;
 
-        // ドラッグ開始前の盤面を保存
+        selectedDrop.SetSelected(true);
         board.BeginDragMove();
     }
 
@@ -88,43 +95,50 @@ public class DropInput : MonoBehaviour
 
         Vector3 localPosition =
             board.transform.InverseTransformPoint(
-                GetMouseWorldPosition()
-            );
+                GetMouseWorldPosition());
 
         int targetX = Mathf.RoundToInt(
             (localPosition.x +
              (board.width - 1) * board.cellSize / 2f)
-            / board.cellSize
-        );
+            / board.cellSize);
 
         int targetY = Mathf.RoundToInt(
             (localPosition.y +
              (board.height - 1) * board.cellSize / 2f)
-            / board.cellSize
-        );
+            / board.cellSize);
 
         if (targetX < 0 || targetX >= board.width ||
             targetY < 0 || targetY >= board.height)
             return;
 
-        if (board.MoveDraggedDropTo(selectedDrop,targetX,targetY))
+        if (board.MoveDraggedDropTo(
+            selectedDrop, targetX, targetY))
         {
             moved = true;
         }
+
+        // 重要：
+        // selectedDrop.transform.localPosition を
+        // マウス位置へ直接変更しない。
+        // BoardManager側の滑らかな移動に任せる。
     }
 
     private void EndDrag()
     {
-        if (selectedDrop != null && moved)
-        {
-            // 指を離したタイミングで消去判定
+        if (selectedDrop == null)
+            return;
+
+        selectedDrop.SetSelected(false);
+
+        // 現在のマス位置に合わせる
+        selectedDrop.SetGridPosition(
+            selectedDrop.X,
+            selectedDrop.Y);
+
+        if (moved)
             board.FinishMove();
-        }
         else
-        {
-            // 移動していなければ保存を解除
             board.CancelDragMove();
-        }
 
         selectedDrop = null;
         moved = false;
@@ -132,6 +146,15 @@ public class DropInput : MonoBehaviour
 
     private void OnDisable()
     {
+        if (selectedDrop != null)
+        {
+            selectedDrop.SetSelected(false);
+
+            selectedDrop.SetGridPosition(
+                selectedDrop.X,
+                selectedDrop.Y);
+        }
+
         if (board != null)
             board.CancelDragMove();
 
@@ -139,4 +162,5 @@ public class DropInput : MonoBehaviour
         moved = false;
     }
 }
+
 

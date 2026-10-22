@@ -231,10 +231,10 @@ public class BoardManager : MonoBehaviour
         drops[ax, ay] = b;
         drops[bx, by] = a;
 
-        a.SetGridPosition(bx, by);
-        b.SetGridPosition(ax, ay);
+        a.SetGridPositionSmooth(bx, by);
+        b.SetGridPositionSmooth(ax, ay);
 
-       
+
 
         return true;
     }
