@@ -599,6 +599,7 @@ MonoBehaviour:
   targetCamera: {fileID: 519420031}
   autoFitCamera: 1
   cameraPadding: 0.35
+  cameraOffsetY: 2.3
   clearDelay: 0.5
   fallDelay: 0.3
 --- !u!4 &1406497132

@@ -22,6 +22,9 @@ public class BoardManager : MonoBehaviour
     public bool autoFitCamera = true;
     public float cameraPadding = 0.35f;
 
+    // 盤面の表示位置。マイナスにすると画面上で盤面が下がる
+    public float cameraOffsetY = 1f;
+
     [Header("演出設定")]
     public float clearDelay = 0.15f;
     public float fallDelay = 0.15f;
@@ -470,7 +473,7 @@ public class BoardManager : MonoBehaviour
 
         targetCamera.transform.position = new Vector3(
             center.x,
-            center.y,
+            center.y + cameraOffsetY,
             cameraPosition.z
         );
 
