@@ -513,8 +513,33 @@ public class BoardManager : MonoBehaviour
             }
         }
 
-        // すべての落下が終わるまで待つ
-        yield return new WaitForSeconds(fallDuration);
+        // すべてのドロップが着地するまで待つ
+        while (true)
+        {
+            bool anyMoving = false;
+
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    Drop drop = drops[x, y];
+
+                    if (drop != null && drop.IsMoving)
+                    {
+                        anyMoving = true;
+                        break;
+                    }
+                }
+
+                if (anyMoving)
+                    break;
+            }
+
+            if (!anyMoving)
+                break;
+
+            yield return null;
+        }
     }
 
 
@@ -599,6 +624,30 @@ public class BoardManager : MonoBehaviour
         }
     }
 
+    // ドラッグ中の入れ替えを即座に反映する
+
+    private bool SwapForDrag(Drop a, Drop b)
+    {
+        if (a == null || b == null)
+            return false;
+
+        int ax = a.X;
+        int ay = a.Y;
+        int bx = b.X;
+        int by = b.Y;
+
+        // 盤面データはすぐに入れ替える
+        drops[ax, ay] = b;
+        drops[bx, by] = a;
+
+        // 見た目だけ滑らかに移動させる
+        a.SetGridPositionSmooth(bx, by);
+        b.SetGridPositionSmooth(ax, ay);
+
+        return true;
+    }
+
+
     // ドラッグ中のドロップを指定したマスまで移動させる
     public bool MoveDraggedDropTo(Drop dragged, int targetX, int targetY)
     {
@@ -628,7 +677,7 @@ public class BoardManager : MonoBehaviour
             Drop target = GetDrop(nextX, nextY);
 
             if (target == null ||
-                !SwapImmediate(dragged, target))
+                !SwapForDrag(dragged, target))
                 break;
 
             movedAny = true;

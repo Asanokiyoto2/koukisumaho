@@ -990,6 +990,8 @@ MonoBehaviour:
   cameraOffsetY: 2.3
   clearDelay: 0.5
   fallDelay: 0.3
+  individualClearDelay: 0.06
+  fallDuration: 0.45
 --- !u!4 &1406497132
 Transform:
   m_ObjectHideFlags: 0

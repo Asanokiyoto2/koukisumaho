@@ -18,6 +18,8 @@ public class Drop : MonoBehaviour
 
     private int originalSortingOrder;
 
+    public bool IsMoving { get; private set; }
+
     private void Awake()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
@@ -122,14 +124,14 @@ public class Drop : MonoBehaviour
     // 位置を滑らかに変更する
     public void SetGridPositionSmooth(int x, int y)
     {
-        X = x;
-        Y = y;
-
         if (board == null)
             return;
 
         if (moveCoroutine != null)
             StopCoroutine(moveCoroutine);
+
+        X = x;
+        Y = y;
 
         Vector3 target = board.GridToLocalPosition(x, y);
         moveCoroutine = StartCoroutine(AnimatePosition(target));
@@ -137,16 +139,23 @@ public class Drop : MonoBehaviour
 
     private IEnumerator AnimatePosition(Vector3 target)
     {
+        IsMoving = true;
+
         Vector3 start = transform.localPosition;
-        float duration = 0.4f;
+        float duration = 0.12f;
         float elapsed = 0f;
+
+        // 距離が短ければ短く、長ければ長く移動する
+        float distance = Vector3.Distance(start, target);
+        duration *= distance / board.cellSize;
+        duration = Mathf.Max(duration, 0.05f);
 
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / duration);
 
-            // 最初と最後が自然につながる動き
+            // 滑らかな移動
             t = t * t * (3f - 2f * t);
 
             transform.localPosition = Vector3.Lerp(start, target, t);
@@ -154,6 +163,8 @@ public class Drop : MonoBehaviour
         }
 
         transform.localPosition = target;
+
+        IsMoving = false;
         moveCoroutine = null;
     }
 }
