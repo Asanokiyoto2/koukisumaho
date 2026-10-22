@@ -138,7 +138,7 @@ public class Drop : MonoBehaviour
     private IEnumerator AnimatePosition(Vector3 target)
     {
         Vector3 start = transform.localPosition;
-        float duration = 0.09f;
+        float duration = 0.4f;
         float elapsed = 0f;
 
         while (elapsed < duration)

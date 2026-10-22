@@ -28,6 +28,8 @@ public class BoardManager : MonoBehaviour
     [Header("演出設定")]
     public float clearDelay = 0.15f;
     public float fallDelay = 0.15f;
+    // ドロップ1個ごとに消えるまでの間隔
+    public float individualClearDelay = 0.06f;
 
     private Drop[,] drops;
     private Drop[,] dragStartBoard;
@@ -39,6 +41,8 @@ public class BoardManager : MonoBehaviour
     private Drop lastSwapA;
     private Drop lastSwapB;
 
+    [Header("落下アニメーション")]
+    public float fallDuration = 0.2f;
     public bool IsBusy { get; private set; }
 
     private readonly DropType[] allTypes =
@@ -269,6 +273,7 @@ public class BoardManager : MonoBehaviour
             StartCoroutine(ResolveBoard());
     }
 
+
     private IEnumerator ResolveBoard()
     {
         IsBusy = true;
@@ -281,47 +286,63 @@ public class BoardManager : MonoBehaviour
 
         while (true)
         {
+            // 今そろっているドロップを取得
             HashSet<Drop> matches = FindMatches();
 
             if (matches.Count == 0)
             {
-                // 消去できなければ盤面全体を元に戻す
+                // 1回も消えなかったら元の配置に戻す
                 if (comboCount == 0)
                     RestoreDragStartBoard();
 
                 break;
             }
 
-            int groupsThisWave = CountMatchGroups(matches);
-            comboCount += groupsThisWave;
+            // 消えるドロップを、独立したグループに分ける
+            List<HashSet<Drop>> groups = GetMatchGroups(matches);
 
-            int[] typeCounts = new int[5];
-
-            foreach (Drop drop in matches)
+            // 先に今回の消去対象をすべてグループ分けしておく
+            foreach (HashSet<Drop> group in groups)
             {
-                if (drop == null)
+                if (group.Count == 0)
                     continue;
 
-                typeCounts[(int)drop.Type]++;
+                comboCount++;
 
-                drops[drop.X, drop.Y] = null;
-                Destroy(drop.gameObject);
+                int[] typeCounts = new int[5];
+
+                // 同じグループのドロップは同時に消す
+                foreach (Drop drop in group)
+                {
+                    if (drop == null)
+                        continue;
+
+                    typeCounts[(int)drop.Type]++;
+
+                    drops[drop.X, drop.Y] = null;
+                    Destroy(drop.gameObject);
+                }
+
+                totalCleared += group.Count;
+
+                // グループ単位でコンボとスコアを更新
+                if (GameManager.Instance != null)
+                {
+                    GameManager.Instance.AddCombo(
+                        group.Count,
+                        comboCount,
+                        typeCounts
+                    );
+                }
+
+                // 次のグループが消えるまで待つ
+                yield return new WaitForSeconds(clearDelay);
             }
-            totalCleared += matches.Count;
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.AddCombo(
-                    matches.Count,
-                    comboCount,
-                    typeCounts
-                );
-            }
 
-            yield return new WaitForSeconds(clearDelay);
+            // すべてのグループが消えてから落下
+            yield return StartCoroutine(CollapseColumnsSmooth());
 
-            CollapseColumns();
-
-            yield return new WaitForSeconds(fallDelay);
+            // 落下後に新しくそろったら、次の連鎖へ
         }
 
         IsBusy = false;
@@ -336,6 +357,7 @@ public class BoardManager : MonoBehaviour
 
         dragStartBoard = null;
     }
+
 
     private HashSet<Drop> FindMatches()
     {
@@ -444,6 +466,57 @@ public class BoardManager : MonoBehaviour
             }
         }
     }
+
+
+    private IEnumerator CollapseColumnsSmooth()
+    {
+        for (int x = 0; x < width; x++)
+        {
+            int writeY = 0;
+
+            // ① もともとあったドロップを下へ詰める
+            for (int y = 0; y < height; y++)
+            {
+                Drop drop = drops[x, y];
+
+                if (drop == null)
+                    continue;
+
+                if (writeY != y)
+                {
+                    drops[x, writeY] = drop;
+                    drops[x, y] = null;
+
+                    // 元からあるドロップも滑らかに落下
+                    drop.SetGridPositionSmooth(x, writeY);
+                }
+
+                writeY++;
+            }
+
+            // ② 空いたマスに新しいドロップを上から補充
+            for (int y = writeY; y < height; y++)
+            {
+                DropType type =
+                    allTypes[Random.Range(0, allTypes.Length)];
+
+                Drop newDrop = CreateDrop(x, y, type);
+
+                // 盤面の上から落ちてくる位置に置く
+                int spawnY = height + (y - writeY);
+
+                newDrop.transform.localPosition =
+                    GridToLocalPosition(x, spawnY);
+
+                // 空いたマスまで滑らかに落下
+                newDrop.SetGridPositionSmooth(x, y);
+            }
+        }
+
+        // すべての落下が終わるまで待つ
+        yield return new WaitForSeconds(fallDuration);
+    }
+
 
     public void FitCameraToBoard()
     {
@@ -623,6 +696,78 @@ public class BoardManager : MonoBehaviour
 
         return groupCount;
     }
+
+
+    private List<HashSet<Drop>> GetMatchGroups(
+        HashSet<Drop> matches)
+    {
+        List<HashSet<Drop>> groups =
+            new List<HashSet<Drop>>();
+
+        HashSet<Drop> remaining =
+            new HashSet<Drop>(matches);
+
+        int[,] directions =
+        {
+        { 1, 0 },
+        { -1, 0 },
+        { 0, 1 },
+        { 0, -1 }
+    };
+
+        while (remaining.Count > 0)
+        {
+            Drop start = null;
+
+            foreach (Drop drop in remaining)
+            {
+                start = drop;
+                break;
+            }
+
+            if (start == null)
+                break;
+
+            HashSet<Drop> group = new HashSet<Drop>();
+            Queue<Drop> queue = new Queue<Drop>();
+
+            queue.Enqueue(start);
+            remaining.Remove(start);
+            group.Add(start);
+
+            while (queue.Count > 0)
+            {
+                Drop current = queue.Dequeue();
+
+                for (int i = 0; i < 4; i++)
+                {
+                    int nx = current.X + directions[i, 0];
+                    int ny = current.Y + directions[i, 1];
+
+                    Drop neighbor = GetDrop(nx, ny);
+
+                    if (neighbor == null)
+                        continue;
+
+                    if (neighbor.Type != current.Type)
+                        continue;
+
+                    // 今回の消去対象に含まれる隣接ドロップだけ
+                    if (remaining.Remove(neighbor))
+                    {
+                        group.Add(neighbor);
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+
+            groups.Add(group);
+        }
+
+        return groups;
+    }
+
+
 
 
 }
