@@ -636,11 +636,9 @@ public class BoardManager : MonoBehaviour
         int bx = b.X;
         int by = b.Y;
 
-        // 盤面データはすぐに入れ替える
         drops[ax, ay] = b;
         drops[bx, by] = a;
 
-        // 見た目だけ滑らかに移動させる
         a.SetGridPositionSmooth(bx, by);
         b.SetGridPositionSmooth(ax, ay);
 
@@ -658,12 +656,13 @@ public class BoardManager : MonoBehaviour
             targetY < 0 || targetY >= height)
             return false;
 
-        bool movedAny = false;
-        int safety = width + height;
+        if (dragged.X == targetX && dragged.Y == targetY)
+            return false;
 
-        // 目的のマスまで1マスずつ入れ替える
-        while ((dragged.X != targetX || dragged.Y != targetY) &&
-               safety-- > 0)
+        bool swapped = false;
+
+        // 目標のマスまで、通過するマスを順番に処理する
+        while (dragged.X != targetX || dragged.Y != targetY)
         {
             int nextX = dragged.X;
             int nextY = dragged.Y;
@@ -671,19 +670,21 @@ public class BoardManager : MonoBehaviour
             // 横方向を優先して移動
             if (nextX != targetX)
                 nextX += nextX < targetX ? 1 : -1;
-            else if (nextY != targetY)
+            else
                 nextY += nextY < targetY ? 1 : -1;
 
             Drop target = GetDrop(nextX, nextY);
 
-            if (target == null ||
-                !SwapForDrag(dragged, target))
+            if (target == null)
                 break;
 
-            movedAny = true;
+            if (!SwapForDrag(dragged, target))
+                break;
+
+            swapped = true;
         }
 
-        return movedAny;
+        return swapped;
     }
 
     // 同時に消えるドロップを、独立したコンボグループに分ける

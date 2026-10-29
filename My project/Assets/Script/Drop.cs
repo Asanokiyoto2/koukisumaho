@@ -167,6 +167,21 @@ public class Drop : MonoBehaviour
         IsMoving = false;
         moveCoroutine = null;
     }
+
+
+    // ドラッグ中：論理座標だけを変更し、見た目はマウスに任せる
+    public void SetGridPositionForDrag(int x, int y)
+    {
+        if (moveCoroutine != null)
+        {
+            StopCoroutine(moveCoroutine);
+            moveCoroutine = null;
+        }
+
+        X = x;
+        Y = y;
+        IsMoving = false;
+    }
 }
 
 
