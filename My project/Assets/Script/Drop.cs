@@ -2,6 +2,7 @@
 using System.Collections;
 using UnityEngine;
 
+
 [RequireComponent(typeof(SpriteRenderer))]
 [RequireComponent(typeof(BoxCollider2D))]
 public class Drop : MonoBehaviour
@@ -181,6 +182,58 @@ public class Drop : MonoBehaviour
         X = x;
         Y = y;
         IsMoving = false;
+    }
+
+    // ドロップが光って縮みながら消える演出
+    public IEnumerator PlayClearAnimation(float duration = 0.22f)
+    {
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+
+        if (sr == null)
+        {
+            Destroy(gameObject);
+            yield break;
+        }
+
+        Vector3 startScale = transform.localScale;
+        Color startColor = sr.color;
+
+        float timer = 0f;
+
+        while (timer < duration)
+        {
+            timer += Time.deltaTime;
+
+            float t = Mathf.Clamp01(timer / duration);
+
+            // 最初に少し大きくなり、その後小さくなる
+            float scale;
+
+            if (t < 0.25f)
+            {
+                scale = Mathf.Lerp(1f, 1.2f, t / 0.25f);
+            }
+            else
+            {
+                scale = Mathf.Lerp(1.2f, 0f, (t - 0.25f) / 0.75f);
+            }
+
+            transform.localScale = startScale * scale;
+
+            // 白く光ってから透明になる
+            Color glowColor = Color.Lerp(
+                startColor,
+                Color.white,
+                Mathf.Clamp01(t * 3f)
+            );
+
+            glowColor.a = 1f - t;
+            sr.color = glowColor;
+
+            yield return null;
+        }
+
+        Destroy(gameObject);
     }
 }
 

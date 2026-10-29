@@ -43,6 +43,7 @@ public class GameManager : MonoBehaviour
         UpdateUI();
     }
 
+
     public void AddCombo(
         int destroyedCount,
         int comboNumber,
@@ -67,7 +68,12 @@ public class GameManager : MonoBehaviour
         Debug.Log(message);
 
         UpdateUI();
+
+        // コンボ表示アニメーション
+        if (gameUI != null)
+            gameUI.ShowCombo(Combo);
     }
+
 
     public void FinishMove(int combo, int totalCleared)
     {
@@ -101,6 +107,7 @@ public class GameManager : MonoBehaviour
             board.ResetBoard();
 
         UpdateUI();
+        gameUI.ShowCombo(Combo);
     }
 
     public void UpdateUI()

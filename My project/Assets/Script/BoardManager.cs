@@ -311,7 +311,7 @@ public class BoardManager : MonoBehaviour
 
                 int[] typeCounts = new int[5];
 
-                // 同じグループのドロップは同時に消す
+                // 同じグループのドロップを光らせて消す
                 foreach (Drop drop in group)
                 {
                     if (drop == null)
@@ -320,8 +320,12 @@ public class BoardManager : MonoBehaviour
                     typeCounts[(int)drop.Type]++;
 
                     drops[drop.X, drop.Y] = null;
-                    Destroy(drop.gameObject);
+
+                    StartCoroutine(drop.PlayClearAnimation(0.22f));
                 }
+
+                // 消去アニメーションが終わるまで待つ
+                yield return new WaitForSeconds(0.24f);
 
                 totalCleared += group.Count;
 
@@ -816,10 +820,6 @@ public class BoardManager : MonoBehaviour
 
         return groups;
     }
-
-
-
-
 }
 
 
